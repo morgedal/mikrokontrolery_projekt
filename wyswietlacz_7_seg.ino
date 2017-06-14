@@ -1,7 +1,23 @@
+/*
+*   Projekt na przedmiot "Programowanie mikrokontrolerów i mikroprocesorów"
+*   Obsługa wyświetlacza 7-segmentowego
+*/
 
+// makra do wyboru systemu operacyjnego
+#define LINUX 0
+#define WINDOWS 1
+#define PLATFORM LINUX
+
+#if PLATFORM == LINUX
+#define END_OF_COMMAND -1
+#elif PLATFORM == WINDOWS
+#define END_OF_COMMAND 10
+#endif
+
+// wartości początkowe
 #define TEXT 0xFEC89B
 #define DISP 500
-#define BRIGHT 2110
+#define BRIGHT 2112
 
 #define START_DIGIT_1 (TEXT/0x100000)%0x10
 #define START_DIGIT_2 (TEXT/0x10000)%0x10
@@ -15,7 +31,7 @@
 #define START_BRIGHTNESS_3 100+450*((BRIGHT/10)%10)
 #define START_BRIGHTNESS_4 100+450*(BRIGHT%10)
 
-/* polaczenia segmentow */
+// polaczenia segmentow 
 #define SS (1<<PD7)
 #define PG (1<<PD2)
 #define PD (1<<PD3)
@@ -26,7 +42,7 @@
 
 const int pgm_digits[] PROGMEM = 
 {
-  ~(SG|PG|PD|SRD|LD|LG),  /* pgm_digits[0] = 0 ... */
+  ~(SG|PG|PD|SRD|LD|LG),  // pgm_digits[0] = 0 ... 
   ~(PG|PD),
   ~(SG|PG|SS|LD|SRD),
   ~(SG|PG|PD|SRD|SS),
@@ -42,12 +58,12 @@ const int pgm_digits[] PROGMEM =
   ~(PG|LD|SS|SRD|PD),
   ~(SG|SRD|LD|LG|SS),
   ~(SG|LD|LG|SS),
-  0xFF  /* pgm_digits[16] = SPACE */
+  0xFF  // pgm_digits[16] = SPACE 
 };
 
 volatile uint8_t digit[10] = 
 {
-  16,16,16,16,     /* cztery spacje na poczatku sekwencji */
+  16,16,16,16,     // cztery spacje na poczatku sekwencji 
   START_DIGIT_1,
   START_DIGIT_2,
   START_DIGIT_3,
@@ -73,7 +89,7 @@ void setup( void )
   TCCR1B = 0;     // wewnetrzne ustawienia Arduino nam przerwan nie psuly
   TCNT1  = 0;
   
-  TCCR1B |= (1<<WGM12);                     //tryb CTC na timerze 2
+  TCCR1B |= (1<<WGM12);                     //tryb CTC na timerze 1
   TCCR1B |= (1<<CS12)|(1<<CS10);            //preskaler 1024
   OCR1A = 64;                               //dodatkowy podzial przez 65
   TIMSK1 |=(1<<OCIE1A);                     //zezwolenie na przerwania
@@ -107,28 +123,28 @@ void check_serial( void )
   
   if( Serial.available() )
   {
-      received_command = Serial.read();
+    received_command = Serial.read();
 
-      switch( received_command )
-      {
-        case 'T':
-        case 't':
-          change_digits();
-          break;
-        case 'D':
-        case 'd':
-          change_display_time();
-          break;
-        case 'B':
-        case 'b':
-          change_brightness();
-          break;
-        default:
-          Serial.println("ERROR: Unknown command");
-      }
+    switch( received_command )
+    {
+      case 'T':
+      case 't':
+        change_digits();
+        break;
+      case 'D':
+      case 'd':
+        change_display_time();
+        break;
+      case 'B':
+      case 'b':
+        change_brightness();
+        break;
+      default:
+        Serial.println("ERROR:Unknown command");
+    }
 
-     while( Serial.available() )    //wyczyszczenie bufora na nastepne komendy
-       Serial.read();
+    while( Serial.available() )    //wyczyszczenie bufora na nastepne komendy
+      Serial.read();
   }
 }
 
@@ -139,7 +155,7 @@ void change_digits( void )
     return;
 
   if( check_if_args_in_range( buffer , 6 , 15 ) == -1 )
-     return;
+    return;
 
   for( uint8_t i=0 ; i<6 ; i++ )
     digit[i+4] = buffer[i];
@@ -164,7 +180,7 @@ int read_ints( uint8_t * buffer , uint8_t arg_length )
    for( uint8_t i=0 ; i < arg_length ; i++ )
      buffer[i] = Serial.read() - '0';
 
-   if( Serial.peek() != 10 )
+   if( Serial.peek() != END_OF_COMMAND )
    {
      Serial.println( "ERROR:Argument too long" );
      return -1;
@@ -197,7 +213,10 @@ void change_display_time( void )
      return; 
 
    if( ( temp = 1000*buffer[0] + 100*buffer[1] + 10*buffer[2] + buffer[3] ) == 0 )
+   {
+     Serial.println("ERROR:Can't be 0");
      return;
+   }
      
    display_time = temp;
 }
@@ -224,7 +243,7 @@ ISR(TIMER1_COMPA_vect)
   switch( counter )
   {
     case 0x01:
-      PORTD = pgm_read_byte( &pgm_digits[ digit[ sequence_counter % 10 ] ] );   
+      PORTD = pgm_read_byte( &pgm_digits[ digit[ sequence_counter % 10 ] ] ) & 0xFC;  
       PORTB = pgm_read_byte( &pgm_digits[ digit[ sequence_counter % 10 ] ] ) & 0x01;     
       break;
     case 0x02:
